@@ -6,14 +6,6 @@ from dateutil.relativedelta import relativedelta
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError
 
-## **** CONFIGURATION VARIABLES **** ##
-# Qualtrics creds 
-api_token = os.environ['API_TOKEN']
-datacenter = os.environ['DATACENTER']
-directoryid = os.environ['DIRECTORY_ID']
-mlid = os.environ['MAILINGLIST_ID']
-survey_id = os.environ['SURVEY_ID']
-
 schema = {
     "type" : "object",
     "properties" : {
@@ -24,10 +16,14 @@ schema = {
         "extRef" : {"type" : "string"},
         "embeddedData" : {"type" : "object"},
         "transactionData" : {"type" : "object"},
+        "API_TOKEN" : {"type" : "string"},
+        "DATACENTER" : {"type" : "string"},
+        "DIRECTORY_ID" : {"type" : "string"},
+        "MAILINGLIST_ID" : {"type" : "string"},
+        "SURVEY_ID" : {"type" : "string"}
     },
-    "required": ["firstName", "lastName", "email", "phone", "extRef", "embeddedData", "transactionData"]
+    "required": ["firstName", "lastName", "email", "phone", "extRef", "embeddedData", "transactionData", "API_TOKEN", "DATACENTER","DIRECTORY_ID","MAILINGLIST_ID","SURVEY_ID"]
 }
-
 
 ## ******* FUNCTIONS ****** ##
 # AWS LAMBDA SETUP TARGETS THE 'lambda_handler' FUNCTION IN THE 'lambda_function.py' FILE.
@@ -37,6 +33,7 @@ def lambda_handler(event, context):
     #body = json.loads(event)
     print("Incoming Event:", event['body'], type(event['body']))
     body = json.loads(event['body'])
+    # Qualtrics creds 
     try:
         validate(instance=body, schema=schema)
     except ValidationError as e:
@@ -47,6 +44,11 @@ def lambda_handler(event, context):
             "body": json.dumps(message),
         }
     try:
+        api_token = body['API_TOKEN']
+        datacenter = body['DATACENTER']
+        directoryid = body['DIRECTORY_ID']
+        mlid = body['MAILINGLIST_ID']
+        survey_id = body['SURVEY_ID']
         #Create contact
         url = "https://"+datacenter+".qualtrics.com/API/v3/directories/"+directoryid+"/mailinglists/"+mlid+"/contacts"
         payload = {
