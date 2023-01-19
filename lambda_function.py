@@ -7,7 +7,7 @@ from jsonschema import validate
 from jsonschema.exceptions import ValidationError
 
 ## **** CONFIGURATION VARIABLES **** ##
-# Qualtrics creds
+# Qualtrics creds 
 api_token = os.environ['API_TOKEN']
 datacenter = os.environ['DATACENTER']
 directoryid = os.environ['DIRECTORY_ID']
