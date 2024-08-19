@@ -5,7 +5,7 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError
-
+# Updated schema
 schema = {
     "type": "object",
     "properties": {
@@ -16,26 +16,19 @@ schema = {
         "extRef": {"type": "string"},
         "embeddedData": {"type": "object"},
         "transactionData": {"type": "object"},
-        "API_TOKEN": {"type": "string"},
-        "DATACENTER": {"type": "string"},
         "DIRECTORY_ID": {"type": "string"},
         "MAILINGLIST_ID": {"type": "string"},
         "SURVEY_ID": {"type": "string"}
     },
-    "required": ["firstName", "lastName", "email", "phone", "extRef", "embeddedData", "transactionData", "API_TOKEN", "DATACENTER", "DIRECTORY_ID", "MAILINGLIST_ID", "SURVEY_ID"]
+    "required": ["DIRECTORY_ID", "MAILINGLIST_ID", "SURVEY_ID"]
 }
-
-## ******* FUNCTIONS ****** ##
-# AWS LAMBDA SETUP TARGETS THE 'lambda_handler' FUNCTION IN THE 'lambda_function.py' FILE.
-# This is the entry point for the API endpoint being called.
+# AWS Lambda entry point
 
 
 def lambda_handler(event, context):
-    # CATCH VARIABLES FROM QUALTRICS WEB REQUEST
-    # body = json.loads(event)
     print("Incoming Event:", event['body'], type(event['body']))
     body = json.loads(event['body'])
-    # Qualtrics creds
+    # Validate the incoming JSON body
     try:
         validate(instance=body, schema=schema)
     except ValidationError as e:
@@ -46,23 +39,29 @@ def lambda_handler(event, context):
             "body": json.dumps(message),
         }
     try:
-        api_token = body['API_TOKEN']
-        datacenter = body['DATACENTER']
         directoryid = body['DIRECTORY_ID']
         mlid = body['MAILINGLIST_ID']
         survey_id = body['SURVEY_ID']
+        api_token = os.getenv("API_TOKEN")
+        datacenter = os.getenv("DATACENTER")
         # Create contact in mailing list
         url = "https://"+datacenter+".qualtrics.com/API/v3/directories/" + \
             directoryid+"/mailinglists/"+mlid+"/contacts"
-        payload = {
-            "firstName": body['firstName'],
-            "lastName": body['lastName'],
-            "email": body['email'],
-            "phone": body['phone'],
-            "extRef": body['extRef'],
-            "embeddedData": body['embeddedData'],
-            "unsubscribed": False
-        }
+        # Build the payload with conditional inclusion
+        payload = {}
+        if "firstName" in body:
+            payload["firstName"] = body['firstName']
+        if "lastName" in body:
+            payload["lastName"] = body['lastName']
+        if "email" in body:
+            payload["email"] = body['email']
+        if "phone" in body:
+            payload["phone"] = body['phone']
+        if "extRef" in body:
+            payload["extRef"] = body['extRef']
+        if "embeddedData" in body:
+            payload["embeddedData"] = body['embeddedData']
+        payload["unsubscribed"] = False
         headers = {
             "Content-Type": "application/json",
             "X-API-TOKEN": api_token
@@ -71,18 +70,17 @@ def lambda_handler(event, context):
         print(response.text)
         cid = json.loads(response.text)['result']['id']
         print("cid:", cid)
-
         # Create Transaction
         url2 = "https://"+datacenter + \
-            ".qualtrics.com/API/v3/directories/"+directoryid+"/transactions"
-        # dat_tim = "2016-12-05 15:45:04"
+            ".qualtrics.com/API/v3/directories/" + directoryid + "/transactions"
         dtnow = datetime.now().strftime('%Y-%m-%d %I:%M:%S')
         payload2 = {
             "usrTx": {
                 "contactId": cid,
                 "mailingListId": mlid,
                 "transactionDate": dtnow,
-                "data": body['transactionData']
+                # Safely get transactionData or an empty dict
+                "data": body.get('transactionData', {})
             }
         }
         response2 = requests.request(
@@ -108,11 +106,9 @@ def lambda_handler(event, context):
         payload4 = {
             "surveyId": survey_id,
             "linkType": "Individual",
-            # "2019-06-24 00:00:00",
             "description": "distribution "+datetime.now().strftime('%Y-%m-%d %I:%M:%S'),
             "action": "CreateTransactionBatchdistribution",
             "transactionBatchId": batch_id,
-            # "2019-07-24 00:00:00",
             "expirationDate": (datetime.now() + relativedelta(months=+2)).strftime('%Y-%m-%d %I:%M:%S'),
             "mailingListId": mlid
         }
@@ -129,7 +125,7 @@ def lambda_handler(event, context):
         link = json.loads(response5.text)['result']['elements'][0]['link']
         print("dist link:", link)
     except Exception as e:
-        message = {"error": e}
+        message = {"error": str(e)}  # Ensure the error is properly serialized
         return {
             "statusCode": 500,
             "headers": {"Content-Type": "application/json"},
