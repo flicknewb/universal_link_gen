@@ -52,7 +52,7 @@ def lambda_handler(event, context):
 
             for column in new_columns:
                 # Adding any missing columns to the table
-                alter_table_command = f'ALTER TABLE {table_name} ADD COLUMN `{column}` VARCHAR(255)'
+                alter_table_command = f'ALTER TABLE {table_name} ADD COLUMN `{column}` TEXT'
                 connection.execute(sqlalchemy.text(alter_table_command))
 
             # Upsert: insert if not exist, else update
