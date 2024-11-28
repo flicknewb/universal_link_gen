@@ -42,6 +42,8 @@ def lambda_handler(event, context):
         df['unique_id'] = sid + '-' + df['ResponseId'].astype(str)
         df.set_index('unique_id', inplace=True)
 
+        df.columns = [sanitize_column_name(col) for col in df.columns]
+
         # Load the data into our table
         with connection.begin() as transaction:
             existing_columns = pd.read_sql_table(
@@ -50,7 +52,7 @@ def lambda_handler(event, context):
 
             for column in new_columns:
                 # Adding any missing columns to the table
-                alter_table_command = f'ALTER TABLE {table_name} ADD COLUMN {column} VARCHAR(255)'
+                alter_table_command = f'ALTER TABLE {table_name} ADD COLUMN `{column}` VARCHAR(255)'
                 connection.execute(sqlalchemy.text(alter_table_command))
 
             # Upsert: insert if not exist, else update
@@ -63,3 +65,8 @@ def lambda_handler(event, context):
         "headers": {"Content-Type": "application/json"},
         "body": json.dumps({}),
     }
+
+
+def sanitize_column_name(column_name):
+    # Replace spaces and special characters with underscores
+    return column_name.replace(" ", "_").replace("(", "").replace(")", "")
