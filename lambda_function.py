@@ -59,7 +59,8 @@ def lambda_handler(event, context):
 
             # Upsert: insert if not exist, else update
             # df.to_sql(table_name, connection, if_exists='append', index=True)
-            upsert_data(table_name, df, connection, failed_ids)
+            df.to_sql(table_name, connection, if_exists='replace', index=True)
+            # upsert_data(table_name, df, connection, failed_ids)
 
     connection.close()  # Close the connection
 
