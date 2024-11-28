@@ -13,29 +13,49 @@ DATACENTER = os.getenv("DATACENTER")
 def lambda_handler(event, context):
     print("Incoming Event:", event['body'], type(event['body']))
     body = json.loads(event['body'])
-    # Initilize Qualtrics Variables:
+
+    # Initialize Qualtrics Variables:
     sids = ['SV_3xhKFtpxNaytUYm']
-    Credentials().qualtrics_api_credentials(token=API_TOKEN,
-                                            data_center=DATACENTER)
+    Credentials().qualtrics_api_credentials(token=API_TOKEN, data_center=DATACENTER)
     r = Responses()
-    # Initilize DB connection
+
+    # Initialize DB connection
     # DB ENDPOINT
     endpoint = os.environ['DB_DOMAIN']
     username = os.environ['DB_USERNAME']
     password = os.environ['DB_PASS']
     database_name = os.environ['DB_NAME']
     table_name = os.environ['TABLE_NAME']
+
     # SQL INIT
     engine = sqlalchemy.create_engine(
-        f'mysql+pymysql://{username}:{password}@{endpoint}/{database_name}').connect()
-    survey_data_table = pd.read_sql_table(table_name, engine)
+        f'mysql+pymysql://{username}:{password}@{endpoint}/{database_name}')
+    connection = engine.connect()
 
     # Iterate the surveys
     for sid in sids:
         df = r.get_survey_responses(survey=sid)
         df.drop([0, 1], inplace=True)
-        print(df.head())
+
+        # Create a unique ID by combining surveyid and ResponseId
+        df['unique_id'] = sid + '-' + df['ResponseId'].astype(str)
+        df.set_index('unique_id', inplace=True)
+
         # Load the data into our table
+        with connection.begin() as transaction:
+            existing_columns = pd.read_sql_table(
+                table_name, connection).columns
+            new_columns = df.columns.difference(existing_columns)
+
+            for column in new_columns:
+                # Adding any missing columns to the table
+                connection.execute(
+                    f'ALTER TABLE {table_name} ADD COLUMN {column} VARCHAR(255)')
+
+            # Upsert: insert if not exist, else update
+            df.to_sql(table_name, connection, if_exists='replace', index=True)
+
+    connection.close()  # Close the connection
 
     return {
         "statusCode": 200,
