@@ -44,6 +44,8 @@ def lambda_handler(event, context):
 
         df.columns = [sanitize_column_name(col) for col in df.columns]
 
+        failed_ids = []
+
         # Load the data into our table
         with connection.begin() as transaction:
             existing_columns = pd.read_sql_table(
@@ -57,7 +59,7 @@ def lambda_handler(event, context):
 
             # Upsert: insert if not exist, else update
             # df.to_sql(table_name, connection, if_exists='append', index=True)
-            upsert_data(table_name, df, connection)
+            upsert_data(table_name, df, connection, failed_ids)
 
     connection.close()  # Close the connection
 
@@ -73,9 +75,8 @@ def sanitize_column_name(column_name):
     return column_name.replace(" ", "_").replace("(", "").replace(")", "")
 
 
-def upsert_data(table_name, df, connection):
+def upsert_data(table_name, df, connection, failed_ids):
     for index, row in df.iterrows():
-        # Convert each row to a dictionary to prepare it for an upsert statement
         data = row.to_dict()
         columns = ', '.join(f'`{key}`' for key in data.keys())
         values = ', '.join(f':{key}' for key in data.keys())
@@ -86,4 +87,9 @@ def upsert_data(table_name, df, connection):
             f'INSERT INTO `{table_name}` ({columns}) VALUES ({values}) '
             f'ON DUPLICATE KEY UPDATE {updates}'
         )
-        connection.execute(upsert_statement, **data)
+
+        try:
+            connection.execute(upsert_statement, **data)
+        except Exception as e:
+            print(f"Error occurred for unique_id {index}: {e}")
+            failed_ids.append(index)
