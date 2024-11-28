@@ -2,3 +2,4 @@ requests
 jsonschema
 QualtricsAPI
 sqlalchemy
+pymysql
