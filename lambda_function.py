@@ -15,7 +15,8 @@ def lambda_handler(event, context):
     body = json.loads(event['body'])
 
     # Initialize Qualtrics Variables:
-    sids = ['SV_3xhKFtpxNaytUYm']
+    # sids = ['SV_3xhKFtpxNaytUYm']
+    sids = os.getenv("SURVEY_IDS").split(",")
     Credentials().qualtrics_api_credentials(token=API_TOKEN, data_center=DATACENTER)
     r = Responses()
 
@@ -49,8 +50,11 @@ def lambda_handler(event, context):
 
             for column in new_columns:
                 # Adding any missing columns to the table
-                connection.execute(
-                    f'ALTER TABLE {table_name} ADD COLUMN {column} VARCHAR(255)')
+                alter_table_command = f'ALTER TABLE {table_name} ADD COLUMN {column} VARCHAR(255)'
+                connection.execute(sqlalchemy.text(alter_table_command))
+
+            # Upsert: insert if not exist, else update
+            df.to_sql(table_name, connection, if_exists='append', index=True)
 
             # Upsert: insert if not exist, else update
             df.to_sql(table_name, connection, if_exists='replace', index=True)
