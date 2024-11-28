@@ -56,7 +56,8 @@ def lambda_handler(event, context):
                 connection.execute(sqlalchemy.text(alter_table_command))
 
             # Upsert: insert if not exist, else update
-            df.to_sql(table_name, connection, if_exists='append', index=True)
+            # df.to_sql(table_name, connection, if_exists='append', index=True)
+            upsert_data(table_name, df, connection)
 
     connection.close()  # Close the connection
 
@@ -70,3 +71,19 @@ def lambda_handler(event, context):
 def sanitize_column_name(column_name):
     # Replace spaces and special characters with underscores
     return column_name.replace(" ", "_").replace("(", "").replace(")", "")
+
+
+def upsert_data(table_name, df, connection):
+    for index, row in df.iterrows():
+        # Convert each row to a dictionary to prepare it for an upsert statement
+        data = row.to_dict()
+        columns = ', '.join(f'`{key}`' for key in data.keys())
+        values = ', '.join(f':{key}' for key in data.keys())
+        updates = ', '.join(
+            f'`{key}` = VALUES(`{key}`)' for key in data.keys())
+
+        upsert_statement = text(
+            f'INSERT INTO `{table_name}` ({columns}) VALUES ({values}) '
+            f'ON DUPLICATE KEY UPDATE {updates}'
+        )
+        connection.execute(upsert_statement, **data)
