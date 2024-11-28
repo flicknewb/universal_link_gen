@@ -82,7 +82,7 @@ def upsert_data(table_name, df, connection):
         updates = ', '.join(
             f'`{key}` = VALUES(`{key}`)' for key in data.keys())
 
-        upsert_statement = text(
+        upsert_statement = sqlalchemy.text(
             f'INSERT INTO `{table_name}` ({columns}) VALUES ({values}) '
             f'ON DUPLICATE KEY UPDATE {updates}'
         )
