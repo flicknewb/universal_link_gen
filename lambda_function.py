@@ -60,8 +60,8 @@ def lambda_handler(event, context):
             # Iterate over each row to create and execute SQL statements
         for index, row in df_mapped.iterrows():
             unique_id = row['unique_id']
-            csat = row['CSAT']
-            comments = row['comments']
+            csat = row['CSAT'] if pd.notna(row['CSAT']) else None
+            comments = row['comments'] if pd.notna(row['comments']) else None
 
             sql = f"""
             INSERT INTO {table_name} (unique_id, CSAT, comments)
