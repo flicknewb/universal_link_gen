@@ -63,18 +63,21 @@ def lambda_handler(event, context):
                 csat = row['CSAT'] if pd.notna(row['CSAT']) else None
                 comments = row['comments'] if pd.notna(
                     row['comments']) else None
+                # Safely format csat and comments with apostrophes for SQL, handling None as well
+                unique_id_str = f"'{unique_id}'"
+                csat_str = f"'{csat}'" if csat is not None else 'NULL'
+                comments_str = f"'{comments}'" if comments is not None else 'NULL'
 
                 sql = f"""
                 INSERT INTO {table_name} (unique_id, CSAT, comments)
-                VALUES (:unique_id, :csat, :comments)
+                VALUES ({unique_id_str}, {csat_str}, {comments_str})
                 ON DUPLICATE KEY UPDATE
                     CSAT = VALUES(CSAT),
                     comments = VALUES(comments);
                 """
 
                 try:
-                    connection.execute(sqlalchemy.text(
-                        sql), {'unique_id': unique_id, 'csat': csat, 'comments': comments})
+                    connection.execute(sqlalchemy.text(sql))
                     print("updated:", {'unique_id': unique_id,
                           'csat': csat, 'comments': comments})
                 except Exception as e:
