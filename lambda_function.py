@@ -55,18 +55,28 @@ def lambda_handler(event, context):
             new_core_columns = core_columns.columns.difference(
                 existing_columns)
 
+            matching_columns = core_columns.columns.intersection(
+                existing_columns)
+
             for column in new_core_columns:
-                # Try to determine the size of current column data to decide column type
-                max_len = df[column].map(lambda x: len(
-                    x) if isinstance(x, str) else 0).max()
-                column_type = 'VARCHAR(255)' if max_len < 255 else 'TEXT'
+                try:
+                    # Try to determine the size of current column data to decide column type
+                    max_len = df[column].map(lambda x: len(
+                        x) if isinstance(x, str) else 0).max()
+                    column_type = 'VARCHAR(255)' if max_len < 255 else 'TEXT'
 
-                # Adding any missing columns to the table
-                alter_table_command = f'ALTER TABLE {table_name} ADD COLUMN `{column}` {column_type}'
-                connection.execute(sqlalchemy.text(alter_table_command))
-
-            # Insert rows with ON DUPLICATE KEY UPDATE logic
+                    # Adding any missing columns to the table
+                    alter_table_command = f'ALTER TABLE {table_name} ADD COLUMN `{column}` {column_type}'
+                    connection.execute(sqlalchemy.text(alter_table_command))
+                    matching_columns = matching_columns.append(
+                        pd.Index([column]))
+                except:
+                    print("failed to add:", column)
+            # reduce our dataframe to only the columns that match
+            df = df.loc[:, matching_columns]
+            # Accumulate the rows that were unable to be updated.
             misses = []
+            # Insert rows with ON DUPLICATE KEY UPDATE logic
             for _, row in df.iterrows():
                 try:
                     cols = ', '.join(f"`{col}`" for col in df.columns)
