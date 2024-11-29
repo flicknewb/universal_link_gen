@@ -45,7 +45,6 @@ def lambda_handler(event, context):
 
         # Create a unique ID by combining surveyid and ResponseId
         df['unique_id'] = sid + '-' + df['ResponseId'].astype(str)
-        df.set_index('unique_id', inplace=True)
         # Select the correct mapping based on the survey ID
         if sid in survey_mappings:
             mapping = survey_mappings[sid]
