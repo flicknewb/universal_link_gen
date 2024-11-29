@@ -41,6 +41,7 @@ def lambda_handler(event, context):
     for sid in sids:
         df = r.get_survey_responses(survey=sid)
         df.drop([0, 1], inplace=True)
+        # df.fillna('', inplace=True)
         print(sid, df.shape)
 
         # Create a unique ID by combining surveyid and ResponseId
@@ -59,28 +60,48 @@ def lambda_handler(event, context):
 
             # Iterate over each row to create and execute SQL statements
             for index, row in df_mapped.iterrows():
-                unique_id = row['unique_id']
-                csat = row['CSAT'] if pd.notna(row['CSAT']) else None
-                comments = row['comments'] if pd.notna(
-                    row['comments']) else None
-                # Safely format csat and comments with apostrophes for SQL, handling None as well
-                unique_id_str = f"'{unique_id}'"
-                csat_str = f"'{csat}'" if csat is not None else 'NULL'
-                comments_str = f"'{comments}'" if comments is not None else 'NULL'
+                # Prepare row data in dictionaries
+                row_data = {
+                    'unique_id': [row['unique_id']],
+                    'CSAT': [row['CSAT']] if pd.notna(row['CSAT']) else [None],
+                    'comments': [row['comments']] if pd.notna(row['comments']) else [None]
+                }
 
-                sql = f"""
-                INSERT IGNORE INTO {table_name} (unique_id, CSAT, comments)
-                VALUES ({unique_id_str}, {csat_str}, {comments_str})
-                """
+                # Create a single-row DataFrame
+                single_row_df = pd.DataFrame(row_data)
 
                 try:
-                    print("SQL:", sql)
-                    connection.execute(sqlalchemy.text(sql))
-                    # print("updated:", {'unique_id': unique_id,
-                    #       'csat': csat, 'comments': comments})
+                    # Using 'to_sql' to append the single row to the database
+                    single_row_df.to_sql(
+                        name=table_name, con=connection, if_exists='append', index=False)
+                    print(
+                        f"Successfully inserted/updated record with unique_id: {row['unique_id']}")
                 except Exception as e:
                     print(
-                        f"SQL call failed for record unique_id {unique_id}: {str(e)}")
+                        f"SQL call failed for record unique_id {row['unique_id']}: {str(e)}")
+
+                # unique_id = row['unique_id']
+                # csat = row['CSAT'] if pd.notna(row['CSAT']) else None
+                # comments = row['comments'] if pd.notna(
+                #     row['comments']) else None
+                # # Safely format csat and comments with apostrophes for SQL, handling None as well
+                # unique_id_str = f"'{unique_id}'"
+                # csat_str = f"'{csat}'" if csat is not None else 'NULL'
+                # comments_str = f"'{comments}'" if comments is not None else 'NULL'
+
+                # sql = f"""
+                # INSERT IGNORE INTO {table_name} (unique_id, CSAT, comments)
+                # VALUES ({unique_id_str}, {csat_str}, {comments_str})
+                # """
+
+                # try:
+                #     print("SQL:", sql)
+                #     connection.execute(sqlalchemy.text(sql))
+                #     # print("updated:", {'unique_id': unique_id,
+                #     #       'csat': csat, 'comments': comments})
+                # except Exception as e:
+                #     print(
+                #         f"SQL call failed for record unique_id {unique_id}: {str(e)}")
         else:
             print(f"No mapping found for survey ID: {sid}")
 
