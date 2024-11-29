@@ -101,6 +101,7 @@ def lambda_handler(event, context):
                 df.to_sql(name=table_name, con=connection,
                           if_exists='append', index=False, method='multi')
             except:
+                print("SQL call failed")
                 pass
 
     connection.close()  # Close the connection
