@@ -44,30 +44,32 @@ def lambda_handler(event, context):
 
         df.columns = [sanitize_column_name(col) for col in df.columns]
 
-        failed_ids = []
+        core_columns, text_columns = divide_columns(df)
+
+        df = df[core_columns.columns]
 
         # Load the data into our table
         with connection.begin() as transaction:
             existing_columns = pd.read_sql_table(
                 table_name, connection).columns
-            new_columns = df.columns.difference(existing_columns)
+            new_core_columns = core_columns.columns.difference(
+                existing_columns)
 
-            for column in new_columns:
+            for column in new_core_columns:
                 # Adding any missing columns to the table
-                alter_table_command = f'ALTER TABLE {table_name} ADD COLUMN `{column}` TEXT'
+                alter_table_command = f'ALTER TABLE {table_name} ADD COLUMN `{column}` VARCHAR(255)'
                 connection.execute(sqlalchemy.text(alter_table_command))
 
             # Upsert: insert if not exist, else update
-            # df.to_sql(table_name, connection, if_exists='append', index=True)
-            df.to_sql(table_name, connection, if_exists='replace', index=True)
-            # upsert_data(table_name, df, connection, failed_ids)
+            df.to_sql(table_name, connection, if_exists='append', index=True)
+            # df.to_sql(table_name, connection, if_exists='replace', index=True)
 
     connection.close()  # Close the connection
 
     return {
         "statusCode": 200,
         "headers": {"Content-Type": "application/json"},
-        "body": json.dumps({"failed_ids": failed_ids}),
+        "body": json.dumps({}),
     }
 
 
@@ -76,21 +78,21 @@ def sanitize_column_name(column_name):
     return column_name.replace(" ", "_").replace("(", "").replace(")", "")
 
 
-def upsert_data(table_name, df, connection, failed_ids):
-    for index, row in df.iterrows():
-        data = row.to_dict()
-        columns = ', '.join(f'`{key}`' for key in data.keys())
-        values = ', '.join(f':{key}' for key in data.keys())
-        updates = ', '.join(
-            f'`{key}` = VALUES(`{key}`)' for key in data.keys())
+def divide_columns(df):
+    """Split columns based on length or type."""
+    core_cols = []
+    text_cols = []
 
-        upsert_statement = sqlalchemy.text(
-            f'INSERT INTO `{table_name}` ({columns}) VALUES ({values}) '
-            f'ON DUPLICATE KEY UPDATE {updates}'
-        )
+    for col in df.columns:
+        # Logic to define can_fit_in_varchar
+        if df[col].dtype == 'object' and can_fit_in_varchar(df[col]):
+            core_cols.append(col)
+        else:
+            text_cols.append(col)
 
-        try:
-            connection.execute(upsert_statement, **data)
-        except Exception as e:
-            print(f"Error occurred for unique_id {index}: {e}")
-            failed_ids.append(index)
+    return df[core_cols], df[text_cols]
+
+
+def can_fit_in_varchar(series):
+    """Determine if column can fit in VARCHAR(255)."""
+    return series.map(lambda x: len(x) if isinstance(x, str) else 0).max() < 255
