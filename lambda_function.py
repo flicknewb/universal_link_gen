@@ -69,11 +69,8 @@ def lambda_handler(event, context):
                 comments_str = f"'{comments}'" if comments is not None else 'NULL'
 
                 sql = f"""
-                INSERT INTO {table_name} (unique_id, CSAT, comments)
+                INSERT IGNORE INTO {table_name} (unique_id, CSAT, comments)
                 VALUES ({unique_id_str}, {csat_str}, {comments_str})
-                ON DUPLICATE KEY UPDATE
-                    CSAT = VALUES(CSAT),
-                    comments = VALUES(comments);
                 """
 
                 try:
