@@ -16,7 +16,6 @@ def lambda_handler(event, context):
 
     # Initialize Qualtrics Variables:
     # sids = ['SV_3xhKFtpxNaytUYm']
-    sids = os.getenv("SURVEY_IDS").split(",")
     Credentials().qualtrics_api_credentials(token=API_TOKEN, data_center=DATACENTER)
     r = Responses()
 
@@ -34,6 +33,10 @@ def lambda_handler(event, context):
     connection = engine.connect()
 
     # Iterate the surveys
+    # Load mapping from environment variable
+    mapping_json = os.getenv('SURVEY_TO_SQL_MAPPING')
+    survey_mappings = json.loads(mapping_json)
+    sids = os.getenv("SURVEY_IDS").split(",")
     print("surveyids", sids)
     for sid in sids:
         df = r.get_survey_responses(survey=sid)
@@ -43,66 +46,26 @@ def lambda_handler(event, context):
         # Create a unique ID by combining surveyid and ResponseId
         df['unique_id'] = sid + '-' + df['ResponseId'].astype(str)
         df.set_index('unique_id', inplace=True)
+        # Select the correct mapping based on the survey ID
+        if sid in survey_mappings:
+            mapping = survey_mappings[sid]
+            csat_column = mapping.get('CSAT')
+            comments_column = mapping.get('comments')
 
-        df.columns = [sanitize_column_name(col) for col in df.columns]
+            # Construct DataFrame with required columns
+            df_mapped = pd.DataFrame(index=df.index)
+            df_mapped['unique_id'] = df['unique_id']
+            df_mapped['CSAT'] = df[csat_column] if csat_column in df.columns else None
+            df_mapped['comments'] = df[comments_column] if comments_column in df.columns else None
 
-        core_columns, text_columns = divide_columns(df)
-
-        df = df[core_columns.columns]
-
-        # Load the data into our table
-        with connection.begin() as transaction:
-            existing_columns = pd.read_sql_table(
-                table_name, connection).columns
-            new_core_columns = core_columns.columns.difference(
-                existing_columns)
-
-            matching_columns = core_columns.columns.intersection(
-                existing_columns)
-
-            for column in new_core_columns:
-                try:
-                    # Try to determine the size of current column data to decide column type
-                    max_len = df[column].map(lambda x: len(
-                        x) if isinstance(x, str) else 0).max()
-                    column_type = 'VARCHAR(255)' if max_len < 255 else 'TEXT'
-
-                    # Adding any missing columns to the table
-                    alter_table_command = f'ALTER TABLE {table_name} ADD COLUMN `{column}` {column_type}'
-                    connection.execute(sqlalchemy.text(alter_table_command))
-                    matching_columns = matching_columns.append(
-                        pd.Index([column]))
-                except:
-                    print("failed to add:", column)
-            # reduce our dataframe to only the columns that match
-            df = df.loc[:, matching_columns]
-            print("pre-update DF Shape:", df.shape)
-            # Accumulate the rows that were unable to be updated.
-            # misses = []
-            # Insert rows with ON DUPLICATE KEY UPDATE logic
-            # for _, row in df.iterrows():
-            #     try:
-            #         cols = ', '.join(f"`{col}`" for col in df.columns)
-            #         vals = ', '.join(f":{col}" for col in df.columns)
-            #         update_stmt = ', '.join(
-            #             f"`{col}` = VALUES(`{col}`)" for col in df.columns)
-
-            #         upsert_sql = f"""
-            #         INSERT INTO {table_name} ({cols})
-            #         VALUES ({vals})
-            #         ON DUPLICATE KEY UPDATE {update_stmt}
-            #         """
-            #         connection.execute(sqlalchemy.text(
-            #             upsert_sql), row.to_dict())
-            #     except:
-            #         misses.append(list[row])
-            # print("misses:", len(misses))
+            # Load data into SQL table
             try:
-                df.to_sql(name=table_name, con=connection,
-                          if_exists='append', index=False, method='multi')
-            except:
-                print("SQL call failed")
-                pass
+                df_mapped.to_sql(name=table_name, con=connection,
+                                 if_exists='append', index=False, method='multi')
+            except Exception as e:
+                print("SQL call failed:", str(e))
+        else:
+            print(f"No mapping found for survey ID: {sid}")
 
     connection.close()  # Close the connection
 
@@ -113,26 +76,14 @@ def lambda_handler(event, context):
     }
 
 
-def sanitize_column_name(column_name):
-    # Replace spaces and special characters with underscores
-    return column_name.replace(" ", "_").replace("(", "").replace(")", "")
-
-
-def divide_columns(df):
-    """Split columns based on length or type."""
-    core_cols = []
-    text_cols = []
-
-    for col in df.columns:
-        # Logic to define can_fit_in_varchar
-        if df[col].dtype == 'object' and can_fit_in_varchar(df[col]):
-            core_cols.append(col)
+def apply_mapping(df, mapping):
+    """Applies the survey to SQL mapping to the DataFrame."""
+    mapped_df = pd.DataFrame(index=df.index)
+    for sql_column, survey_column in mapping.items():
+        if survey_column in df.columns:
+            mapped_df[sql_column] = df[survey_column]
         else:
-            text_cols.append(col)
+            # Set None or handle missing columns differently
+            mapped_df[sql_column] = None
 
-    return df[core_cols], df[text_cols]
-
-
-def can_fit_in_varchar(series):
-    """Determine if column can fit in VARCHAR(255)."""
-    return series.map(lambda x: len(x) if isinstance(x, str) else 0).max() < 255
+    return mapped_df
