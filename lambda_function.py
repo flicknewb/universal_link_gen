@@ -97,8 +97,11 @@ def lambda_handler(event, context):
             #     except:
             #         misses.append(list[row])
             # print("misses:", len(misses))
-            df.to_sql(name=table_name, con=connection,
-                      if_exists='append', index=False, method='multi')
+            try:
+                df.to_sql(name=table_name, con=connection,
+                          if_exists='append', index=False, method='multi')
+            except:
+                pass
 
     connection.close()  # Close the connection
 
