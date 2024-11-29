@@ -96,7 +96,7 @@ def lambda_handler(event, context):
                         upsert_sql), row.to_dict())
                 except:
                     misses.append(list[row])
-            print("misses:", misses)
+            print("misses:", len(misses))
 
     connection.close()  # Close the connection
 
