@@ -65,7 +65,7 @@ def lambda_handler(event, context):
 
             sql = f"""
             INSERT INTO {table_name} (unique_id, CSAT, comments)
-            VALUES (%s, %s, %s)
+            VALUES (:unique_id, :csat, :comments)
             ON DUPLICATE KEY UPDATE
                 CSAT = VALUES(CSAT),
                 comments = VALUES(comments);
@@ -73,7 +73,7 @@ def lambda_handler(event, context):
 
             try:
                 connection.execute(sqlalchemy.text(
-                    sql), (unique_id, csat, comments))
+                    sql), {'unique_id': unique_id, 'csat': csat, 'comments': comments})
             except Exception as e:
                 print(
                     f"SQL call failed for record unique_id {unique_id}: {str(e)}")
