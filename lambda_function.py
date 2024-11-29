@@ -94,7 +94,7 @@ def lambda_handler(event, context):
                     connection.execute(sqlalchemy.text(
                         upsert_sql), row.to_dict())
                 except:
-                    misses.append(row['unique_id'])
+                    misses.append(row)
 
     connection.close()  # Close the connection
 
