@@ -82,14 +82,14 @@ def lambda_handler(event, context):
                     connection.execute(sqlalchemy.text(
                         upsert_sql), row.to_dict())
                 except:
-                    misses.append(row['unique_id'])
+                    misses.append(list(row))
 
     connection.close()  # Close the connection
 
     return {
         "statusCode": 200,
         "headers": {"Content-Type": "application/json"},
-        "body": json.dumps({}),
+        "body": json.dumps({"misses": misses}),
     }
 
 
