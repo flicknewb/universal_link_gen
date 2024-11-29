@@ -76,6 +76,7 @@ def lambda_handler(event, context):
                     print("failed to add:", column)
             # reduce our dataframe to only the columns that match
             df = df.loc[:, matching_columns]
+            print("pre-update DF Shape:", df.shape)
             # Accumulate the rows that were unable to be updated.
             misses = []
             # Insert rows with ON DUPLICATE KEY UPDATE logic
