@@ -78,6 +78,7 @@ def lambda_handler(event, context):
 
                 try:
                     connection.execute(sqlalchemy.text(sql))
+                    connection.execute("COMMIT")
                     print("updated:", {'unique_id': unique_id,
                           'csat': csat, 'comments': comments})
                 except Exception as e:
