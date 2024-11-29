@@ -65,9 +65,24 @@ def lambda_handler(event, context):
                 alter_table_command = f'ALTER TABLE {table_name} ADD COLUMN `{column}` {column_type}'
                 connection.execute(sqlalchemy.text(alter_table_command))
 
-            # Upsert: insert if not exist, else update
-            df.to_sql(table_name, connection, if_exists='append', index=True)
-            # df.to_sql(table_name, connection, if_exists='replace', index=True)
+            # Insert rows with ON DUPLICATE KEY UPDATE logic
+            misses = []
+            for _, row in df.iterrows():
+                try:
+                    cols = ', '.join(f"`{col}`" for col in df.columns)
+                    vals = ', '.join(f":{col}" for col in df.columns)
+                    update_stmt = ', '.join(
+                        f"`{col}` = VALUES(`{col}`)" for col in df.columns)
+
+                    upsert_sql = f"""
+                    INSERT INTO {table_name} ({cols})
+                    VALUES ({vals})
+                    ON DUPLICATE KEY UPDATE {update_stmt}
+                    """
+                    connection.execute(sqlalchemy.text(
+                        upsert_sql), row.to_dict())
+                except:
+                    misses.append(row['unique_id'])
 
     connection.close()  # Close the connection
 
