@@ -34,9 +34,11 @@ def lambda_handler(event, context):
     connection = engine.connect()
 
     # Iterate the surveys
+    print("surveyids", sids)
     for sid in sids:
         df = r.get_survey_responses(survey=sid)
         df.drop([0, 1], inplace=True)
+        print(sid, df.shape)
 
         # Create a unique ID by combining surveyid and ResponseId
         df['unique_id'] = sid + '-' + df['ResponseId'].astype(str)
@@ -92,7 +94,7 @@ def lambda_handler(event, context):
                     connection.execute(sqlalchemy.text(
                         upsert_sql), row.to_dict())
                 except:
-                    misses.append(list(row))
+                    misses.append(row['unique_id'])
 
     connection.close()  # Close the connection
 
