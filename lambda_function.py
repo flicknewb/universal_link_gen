@@ -57,12 +57,26 @@ def lambda_handler(event, context):
             df_mapped['CSAT'] = df[csat_column] if csat_column in df.columns else None
             df_mapped['comments'] = df[comments_column] if comments_column in df.columns else None
 
-            # Load data into SQL table
+            # Iterate over each row to create and execute SQL statements
+        for index, row in df_mapped.iterrows():
+            unique_id = row['unique_id']
+            csat = row['CSAT']
+            comments = row['comments']
+
+            sql = f"""
+            INSERT INTO {table_name} (unique_id, CSAT, comments)
+            VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                CSAT = VALUES(CSAT),
+                comments = VALUES(comments);
+            """
+
             try:
-                df_mapped.to_sql(name=table_name, con=connection,
-                                 if_exists='append', index=False, method='multi')
+                connection.execute(sqlalchemy.text(
+                    sql), (unique_id, csat, comments))
             except Exception as e:
-                print("SQL call failed:", str(e))
+                print(
+                    f"SQL call failed for record unique_id {unique_id}: {str(e)}")
         else:
             print(f"No mapping found for survey ID: {sid}")
 
