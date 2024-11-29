@@ -58,25 +58,26 @@ def lambda_handler(event, context):
             df_mapped['comments'] = df[comments_column] if comments_column in df.columns else None
 
             # Iterate over each row to create and execute SQL statements
-        for index, row in df_mapped.iterrows():
-            unique_id = row['unique_id']
-            csat = row['CSAT'] if pd.notna(row['CSAT']) else None
-            comments = row['comments'] if pd.notna(row['comments']) else None
+            for index, row in df_mapped.iterrows():
+                unique_id = row['unique_id']
+                csat = row['CSAT'] if pd.notna(row['CSAT']) else None
+                comments = row['comments'] if pd.notna(
+                    row['comments']) else None
 
-            sql = f"""
-            INSERT INTO {table_name} (unique_id, CSAT, comments)
-            VALUES (:unique_id, :csat, :comments)
-            ON DUPLICATE KEY UPDATE
-                CSAT = VALUES(CSAT),
-                comments = VALUES(comments);
-            """
+                sql = f"""
+                INSERT INTO {table_name} (unique_id, CSAT, comments)
+                VALUES (:unique_id, :csat, :comments)
+                ON DUPLICATE KEY UPDATE
+                    CSAT = VALUES(CSAT),
+                    comments = VALUES(comments);
+                """
 
-            try:
-                connection.execute(sqlalchemy.text(
-                    sql), {'unique_id': unique_id, 'csat': csat, 'comments': comments})
-            except Exception as e:
-                print(
-                    f"SQL call failed for record unique_id {unique_id}: {str(e)}")
+                try:
+                    connection.execute(sqlalchemy.text(
+                        sql), {'unique_id': unique_id, 'csat': csat, 'comments': comments})
+                except Exception as e:
+                    print(
+                        f"SQL call failed for record unique_id {unique_id}: {str(e)}")
         else:
             print(f"No mapping found for survey ID: {sid}")
 
