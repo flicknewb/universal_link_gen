@@ -56,8 +56,13 @@ def lambda_handler(event, context):
                 existing_columns)
 
             for column in new_core_columns:
+                # Try to determine the size of current column data to decide column type
+                max_len = df[column].map(lambda x: len(
+                    x) if isinstance(x, str) else 0).max()
+                column_type = 'VARCHAR(255)' if max_len < 255 else 'TEXT'
+
                 # Adding any missing columns to the table
-                alter_table_command = f'ALTER TABLE {table_name} ADD COLUMN `{column}` VARCHAR(255)'
+                alter_table_command = f'ALTER TABLE {table_name} ADD COLUMN `{column}` {column_type}'
                 connection.execute(sqlalchemy.text(alter_table_command))
 
             # Upsert: insert if not exist, else update
