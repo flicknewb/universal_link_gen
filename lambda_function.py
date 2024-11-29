@@ -75,6 +75,8 @@ def lambda_handler(event, context):
                 try:
                     connection.execute(sqlalchemy.text(
                         sql), {'unique_id': unique_id, 'csat': csat, 'comments': comments})
+                    print("updated:", {'unique_id': unique_id,
+                          'csat': csat, 'comments': comments})
                 except Exception as e:
                     print(
                         f"SQL call failed for record unique_id {unique_id}: {str(e)}")
