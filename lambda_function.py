@@ -78,25 +78,27 @@ def lambda_handler(event, context):
             df = df.loc[:, matching_columns]
             print("pre-update DF Shape:", df.shape)
             # Accumulate the rows that were unable to be updated.
-            misses = []
+            # misses = []
             # Insert rows with ON DUPLICATE KEY UPDATE logic
-            for _, row in df.iterrows():
-                try:
-                    cols = ', '.join(f"`{col}`" for col in df.columns)
-                    vals = ', '.join(f":{col}" for col in df.columns)
-                    update_stmt = ', '.join(
-                        f"`{col}` = VALUES(`{col}`)" for col in df.columns)
+            # for _, row in df.iterrows():
+            #     try:
+            #         cols = ', '.join(f"`{col}`" for col in df.columns)
+            #         vals = ', '.join(f":{col}" for col in df.columns)
+            #         update_stmt = ', '.join(
+            #             f"`{col}` = VALUES(`{col}`)" for col in df.columns)
 
-                    upsert_sql = f"""
-                    INSERT INTO {table_name} ({cols})
-                    VALUES ({vals})
-                    ON DUPLICATE KEY UPDATE {update_stmt}
-                    """
-                    connection.execute(sqlalchemy.text(
-                        upsert_sql), row.to_dict())
-                except:
-                    misses.append(list[row])
-            print("misses:", len(misses))
+            #         upsert_sql = f"""
+            #         INSERT INTO {table_name} ({cols})
+            #         VALUES ({vals})
+            #         ON DUPLICATE KEY UPDATE {update_stmt}
+            #         """
+            #         connection.execute(sqlalchemy.text(
+            #             upsert_sql), row.to_dict())
+            #     except:
+            #         misses.append(list[row])
+            # print("misses:", len(misses))
+            df.to_sql(name=table_name, con=connection,
+                      if_exists='append', index=False, method='multi')
 
     connection.close()  # Close the connection
 
